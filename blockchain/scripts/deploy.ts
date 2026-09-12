@@ -1,18 +1,35 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  console.log("Deploying EmploymentRegistry smart contract...");
+  console.log("==================================================");
+  console.log("Deploying WorkProof EmploymentRegistry contract...");
+  console.log("==================================================");
 
-  const EmploymentRegistry = await ethers.getContractFactory("EmploymentRegistry");
-  const registry = await EmploymentRegistry.deploy();
+  const [deployer] = await ethers.getSigners();
+  console.log(`Deployer address: ${deployer.address}`);
+
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`Deployer balance: ${ethers.formatEther(balance)} ETH`);
+
+  const EmploymentRegistryFactory = await ethers.getContractFactory("EmploymentRegistry");
+  const registry = await EmploymentRegistryFactory.deploy();
 
   await registry.waitForDeployment();
 
-  const address = await registry.getAddress();
-  console.log(`EmploymentRegistry deployed successfully to: ${address}`);
+  const contractAddress = await registry.getAddress();
+  const deploymentTx = registry.deploymentTransaction();
+
+  console.log("--------------------------------------------------");
+  console.log(`EmploymentRegistry deployed successfully!`);
+  console.log(`Contract Address : ${contractAddress}`);
+  if (deploymentTx) {
+    console.log(`Transaction Hash : ${deploymentTx.hash}`);
+    console.log(`Block Number     : ${deploymentTx.blockNumber}`);
+  }
+  console.log("==================================================");
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error("Deployment failed with error:", error);
   process.exitCode = 1;
 });
