@@ -1,0 +1,29 @@
+{
+  "name": "workproof-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorkProof - Privacy-Preserving Blockchain-Based Employment Attestation and Verification Network",
+  "scripts": {
+    "install:all": "npm install && npm --prefix blockchain install && npm --prefix backend install && npm --prefix frontend install",
+    "compile:blockchain": "npm --prefix blockchain run compile",
+    "test:blockchain": "npm --prefix blockchain test",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:all": "npm run compile:blockchain && npm run build:backend && npm run build:frontend",
+    "dev:blockchain": "npm --prefix blockchain run node",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "solidity",
+    "employment-verification",
+    "ipfs",
+    "privacy",
+    "react",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT"
+}
