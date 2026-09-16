@@ -35,6 +35,24 @@ interface Web3ContextType {
   refreshEmployerStatus: () => Promise<void>;
 }
 
+/**
+ * Helper to safely resolve the Ethereum provider (handles multiple wallet extensions)
+ */
+function getEthereumProvider(): any {
+  if (typeof window === "undefined") return null;
+  const anyWin = window as any;
+  if (!anyWin.ethereum) return null;
+
+  // Handle multi-wallet environments (e.g., MetaMask alongside Coinbase, Phantom, etc.)
+  if (Array.isArray(anyWin.ethereum.providers)) {
+    const mmProvider = anyWin.ethereum.providers.find((p: any) => p.isMetaMask);
+    if (mmProvider) return mmProvider;
+    return anyWin.ethereum.providers[0];
+  }
+
+  return anyWin.ethereum;
+}
+
 const Web3Context = createContext<Web3ContextType | null>(null);
 
 export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -90,30 +108,51 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [account, readOnlyContract]);
 
   const connect = useCallback(async () => {
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      setError("MetaMask wallet is not detected in your browser.");
+    const ethereum = getEthereumProvider();
+    if (!ethereum) {
+      const msg = "MetaMask wallet was not detected. Please install or enable MetaMask in your browser.";
+      console.warn("[WorkProof Web3]", msg);
+      setError(msg);
       return;
     }
 
     setIsConnecting(true);
     setError(null);
+    console.info("[WorkProof Web3] Requesting account access via eth_requestAccounts...");
 
     try {
-      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
-      const accounts = await browserProvider.send("eth_requestAccounts", []);
+      // EIP-1193 direct request ensures MetaMask window/popup triggers reliably
+      const accounts: string[] = await ethereum.request({
+        method: "eth_requestAccounts",
+      });
+
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts were authorized or returned from wallet.");
+      }
+
+      const browserProvider = new ethers.BrowserProvider(ethereum);
       const network = await browserProvider.getNetwork();
       const currentSigner = await browserProvider.getSigner();
 
-      const currentAccount = accounts[0] ? ethers.getAddress(accounts[0]) : null;
+      const currentAccount = ethers.getAddress(accounts[0]);
       const currentChainId = Number(network.chainId);
 
       setAccount(currentAccount);
       setChainId(currentChainId);
       setProvider(browserProvider);
       setSigner(currentSigner);
+
+      console.info("[WorkProof Web3] Wallet successfully connected:", {
+        account: currentAccount,
+        chainId: currentChainId,
+      });
     } catch (err: any) {
-      console.error("Failed to connect wallet:", err);
-      setError(err.message || "Failed to connect wallet");
+      console.error("[WorkProof Web3] Failed to connect wallet:", err);
+      if (err.code === 4001 || err?.info?.error?.code === 4001) {
+        setError("Connection request rejected in MetaMask.");
+      } else {
+        setError(err.message || "Failed to connect wallet");
+      }
     } finally {
       setIsConnecting(false);
     }
@@ -130,12 +169,13 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const switchNetwork = useCallback(async () => {
-    if (typeof window === "undefined" || !(window as any).ethereum) return;
+    const ethereum = getEthereumProvider();
+    if (!ethereum || !ethereum.request) return;
 
     const hexChainId = "0x" + EXPECTED_CHAIN_ID.toString(16);
 
     try {
-      await (window as any).ethereum.request({
+      await ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: hexChainId }],
       });
@@ -143,7 +183,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Error 4902 indicates chain has not been added yet
       if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
         try {
-          await (window as any).ethereum.request({
+          await ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
               {
@@ -167,6 +207,35 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
+  // Auto-connect if wallet is already connected/authorized for this site
+  useEffect(() => {
+    const ethereum = getEthereumProvider();
+    if (!ethereum || !ethereum.request) return;
+
+    ethereum
+      .request({ method: "eth_accounts" })
+      .then(async (accounts: string[]) => {
+        if (accounts && accounts.length > 0) {
+          try {
+            const browserProvider = new ethers.BrowserProvider(ethereum);
+            const network = await browserProvider.getNetwork();
+            const currentSigner = await browserProvider.getSigner();
+
+            setAccount(ethers.getAddress(accounts[0]));
+            setChainId(Number(network.chainId));
+            setProvider(browserProvider);
+            setSigner(currentSigner);
+            console.info("[WorkProof Web3] Auto-connected existing session for:", accounts[0]);
+          } catch (autoErr) {
+            console.warn("[WorkProof Web3] Auto-connect error:", autoErr);
+          }
+        }
+      })
+      .catch((err: any) => {
+        console.warn("[WorkProof Web3] Auto-connect check failed:", err);
+      });
+  }, []);
+
   // Sync employer profile whenever account changes
   useEffect(() => {
     refreshEmployerStatus();
@@ -174,18 +243,18 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Listen to MetaMask account & chain changes
   useEffect(() => {
-    if (typeof window === "undefined" || !(window as any).ethereum) return;
-
-    const ethereum = (window as any).ethereum;
+    const ethereum = getEthereumProvider();
+    if (!ethereum || !ethereum.on) return;
 
     const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
+      if (!accounts || accounts.length === 0) {
         disconnect();
       } else {
-        setAccount(ethers.getAddress(accounts[0]));
-        if (provider) {
-          provider.getSigner().then(setSigner).catch(console.error);
-        }
+        const nextAccount = ethers.getAddress(accounts[0]);
+        setAccount(nextAccount);
+        const browserProvider = new ethers.BrowserProvider(ethereum);
+        setProvider(browserProvider);
+        browserProvider.getSigner().then(setSigner).catch(console.error);
       }
     };
 
@@ -202,7 +271,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ethereum.removeListener("chainChanged", handleChainChanged);
       }
     };
-  }, [provider, disconnect]);
+  }, [disconnect]);
 
   const value = useMemo(
     () => ({

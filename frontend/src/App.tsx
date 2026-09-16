@@ -11,10 +11,23 @@ import { Web3Provider, useWeb3 } from "./context/Web3Context";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
 const AppContent: React.FC = () => {
-  const { isConnected, isCorrectNetwork, chainId, switchNetwork } = useWeb3();
+  const { isConnected, isCorrectNetwork, chainId, switchNetwork, error } = useWeb3();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+      {error && !isConnected && (
+        <div className="bg-rose-950 border-b border-rose-800/80 px-4 py-2.5 text-rose-200 text-xs sm:text-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>
+                <strong>Wallet Error:</strong> {error}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isConnected && !isCorrectNetwork && (
         <div className="bg-amber-950 border-b border-amber-800/80 px-4 py-2.5 text-amber-200 text-xs sm:text-sm">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">

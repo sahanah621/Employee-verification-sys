@@ -11,6 +11,8 @@
     "build:frontend": "npm --prefix frontend run build",
     "build:all": "npm run compile:blockchain && npm run build:backend && npm run build:frontend",
     "dev:blockchain": "npm --prefix blockchain run node",
+    "deploy:blockchain": "npm --prefix blockchain run deploy:local",
+    "seed:blockchain": "npm --prefix blockchain run seed",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev"
   },

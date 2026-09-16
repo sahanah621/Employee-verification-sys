@@ -20,6 +20,7 @@ export const Navbar: React.FC = () => {
     isCorrectNetwork,
     isRegisteredEmployer,
     employerProfile,
+    error,
     connect,
     disconnect,
     switchNetwork,
@@ -116,6 +117,7 @@ export const Navbar: React.FC = () => {
               <button
                 onClick={connect}
                 disabled={isConnecting}
+                title={error ? `Wallet: ${error}` : "Connect MetaMask Wallet"}
                 className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-all shadow-md hover:shadow-emerald-900/40 active:scale-[0.98]"
               >
                 {isConnecting ? (
